@@ -131,7 +131,7 @@ exports.login = async (req, res) => {
     const check = await bcrypt.compare(password, user.password);
     if (!check) {
       return res.status(400).json({
-        message: "Invalid credentials.Please try again.",
+        message: "Invalid credentials. Please try again.",
       });
     }
     const token = generateToken({ id: user._id.toString() }, "7d");
