@@ -8,6 +8,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use(cors({ origin: "https://mellow-kataifi-24d734.netlify.app" }));
 app.use(cors());
 app.use(
   fileUpload({
