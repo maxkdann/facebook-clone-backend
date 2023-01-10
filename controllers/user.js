@@ -188,6 +188,12 @@ exports.findUser = async (req, res) => {
   }
 };
 
+exports.dummy = async (req, res) => {
+  return res.status(200).json({
+    message: "Working",
+  });
+};
+
 exports.sendResetPasswordCode = async (req, res) => {
   try {
     const { email } = req.body;
