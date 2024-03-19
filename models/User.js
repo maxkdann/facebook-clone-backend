@@ -23,6 +23,14 @@ const userSchema = mongoose.Schema(
       text: true,
       unique: true,
     },
+    twofaSecret: {
+      type: String,
+      default: "",
+    },
+    twofaEnabled: {
+      type: Boolean,
+      default: false,
+    },
 
     email: {
       type: String,

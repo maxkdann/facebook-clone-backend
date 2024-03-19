@@ -13,6 +13,8 @@ const { generateToken } = require("../helpers/tokens");
 const { sendVerificationEmail, sendResetCode } = require("../helpers/mailer");
 const generateCode = require("../helpers/generateCode");
 const mongoose = require("mongoose");
+const qrcode = require("qrcode");
+const { authenticator } = require("otplib");
 exports.register = async (req, res) => {
   try {
     const {
@@ -148,6 +150,43 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.generateQR = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const secret = authenticator.generateSecret();
+    const uri = authenticator.keyuri(user, "Fakebook", secret);
+    const image = await qrcode.toDataURL(uri);
+    await User.findByIdAndUpdate(req.user._id, {
+      tempSecret: secret,
+    });
+    return res.json({
+      success: true,
+      image: image,
+      id: user._id,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateProfilePicture = async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    await User.findByIdAndUpdate(req.user.id, {
+      picture: url,
+    });
+    res.json(url);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.sendVerification = async (req, res) => {
   try {
     const id = req.user.id;
@@ -282,19 +321,6 @@ exports.getProfile = async (req, res) => {
       .sort({ createdAt: -1 });
     await profile.populate("friends", "first_name last_name username picture");
     res.json({ ...profile.toObject(), posts, friendship });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-exports.updateProfilePicture = async (req, res) => {
-  try {
-    const { url } = req.body;
-
-    await User.findByIdAndUpdate(req.user.id, {
-      picture: url,
-    });
-    res.json(url);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

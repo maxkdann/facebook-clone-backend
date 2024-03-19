@@ -3,6 +3,7 @@ const {
   register,
   activateAccount,
   login,
+  generateQR,
   auth,
   sendVerification,
   findUser,
@@ -32,6 +33,7 @@ const { authUser } = require("../middlwares/auth");
 const router = express.Router();
 
 router.post("/register", register);
+router.get("/generateQR", generateQR);
 router.post("/activate", authUser, activateAccount);
 router.post("/login", login);
 router.post("/sendVerification", authUser, sendVerification);
