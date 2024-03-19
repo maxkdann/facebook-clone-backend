@@ -120,6 +120,58 @@ exports.activateAccount = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// exports.login = async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+//     const user = await User.findOne({ email });
+//     if (!user) {
+//       return res.status(400).json({
+//         message:
+//           "the email address you entered is not connected to an account.",
+//       });
+//     }
+//     const check = await bcrypt.compare(password, user.password);
+//     if (!check) {
+//       return res.status(400).json({
+//         message: "Invalid credentials. Please try again.",
+//       });
+//     }
+//     const token = generateToken({ id: user._id.toString() }, "7d");
+//     if (!user.twofaEnabled) {
+//       res.send({
+//         id: user._id,
+//         username: user.username,
+//         picture: user.picture,
+//         first_name: user.first_name,
+//         last_name: user.last_name,
+//         token: token,
+//         verified: user.verified,
+//         twofaEnabled: false,
+//         twofa_token: jwt.sign(
+//           {
+//             user: { email: user.email },
+//           },
+//           process.env.JWT_SECRET
+//         ),
+//       });
+//     } else {
+//       res.send({
+//         message: "Please complete 2-factor authentication",
+//         twofaEnabled: true,
+//         loginStep2VerificationToken: jwt.sign(
+//           {
+//             loginStep2VerificationToken: { email: user.email },
+//           },
+//           process.env.JWT_SECRET,
+//           { expiresIn: "1m" }
+//         ),
+//       });
+//     }
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -151,26 +203,90 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.generateQR = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    const secret = authenticator.generateSecret();
-    const uri = authenticator.keyuri(user, "Fakebook", secret);
-    const image = await qrcode.toDataURL(uri);
-    await User.findByIdAndUpdate(req.user._id, {
-      tempSecret: secret,
+exports.generate2faSecret = async (req, res) => {
+  const { username } = req.body;
+  const user = await User.findOne({ username });
+  if (user.twofaEnabled) {
+    return res.status(400).json({
+      message: "2FA already verified and enabled",
+      twofaEnabled: user.twofaEnabled,
     });
+  }
+
+  const secret = authenticator.generateSecret();
+  user.twofaSecret = secret;
+  user.save();
+  const appName = "Fakebook";
+
+  return res.json({
+    message: "2FA secret generation successful",
+    secret: secret,
+    success: true,
+    qrImageDataUrl: await qrcode.toDataURL(
+      authenticator.keyuri(username, appName, secret)
+    ),
+    twofaEnabled: user.twofaEnabled,
+  });
+};
+
+exports.verifyOtp = async (req, res) => {
+  console.log(req);
+  const { username, token } = req.body;
+  const user = await User.findOne({ username });
+  if (user.twofaEnabled) {
     return res.json({
-      success: true,
-      image: image,
-      id: user._id,
+      message: "2FA already verified and enabled",
+      twofaEnabled: user.twofaEnabled,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  }
+
+  if (!authenticator.check(token, user.twofaSecret)) {
+    return res.status(400).json({
+      message: "OTP verification failed: Invalid token",
+      twofaEnabled: user.twofaEnabled,
+    });
+  } else {
+    user.twofaEnabled = true;
+    user.save();
+
+    return res.json({
+      message: "OTP verification successful",
+      twofaEnabled: user.twofaEnabled,
+    });
+  }
+};
+
+exports.loginStep2 = async (req, res) => {
+  let loginStep2VerificationToken = null;
+  try {
+    loginStep2VerificationToken = jwt.verify(
+      req.body.loginStep2VerificationToken,
+      process.env.JWT_SECRET
+    );
+  } catch (err) {
+    return res.status(401).json({
+      message: "You are not authorized to perform login step 2",
+    });
+  }
+
+  const token = req.body.twofaToken.replaceAll(" ", "");
+  const user = await User.findOne({
+    email: loginStep2VerificationToken.loginStep2VerificationToken.email,
+  });
+  if (!authenticator.check(token, user.twofaSecret)) {
+    return res.status(400).json({
+      message: "OTP verification failed: Invalid token",
+    });
+  } else {
+    return res.json({
+      message: "OTP verification successful",
+      token: jwt.sign(
+        {
+          user: { email: user.email },
+        },
+        process.env.JWT_SECRET
+      ),
+    });
   }
 };
 
