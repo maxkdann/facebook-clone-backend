@@ -10,13 +10,13 @@ const app = express();
 
 //allow access from frontend
 app.use(
-  cors()
-  // cors({
-  //   origin: [
-  //     "http://localhost:3000",
-  //     "https://mellow-kataifi-24d734.netlify.app",
-  //   ],
-  // })
+  //  cors()
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://mellow-kataifi-24d734.netlify.app",
+    ],
+  })
 );
 
 app.use(express.json());
