@@ -210,7 +210,7 @@ exports.verifyOtp = async (req, res) => {
 
   if (!authenticator.check(token, user.twofaSecret)) {
     return res.json({
-      message: "OTP verification failed: Invalid token",
+      message: "The token you entered was not correct. Please try again.",
       twofaEnabled: user.twofaEnabled,
     });
   } else {

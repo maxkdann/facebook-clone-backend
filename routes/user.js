@@ -3,7 +3,6 @@ const {
   register,
   activateAccount,
   login,
-  auth,
   sendVerification,
   findUser,
   sendResetPasswordCode,
@@ -35,16 +34,17 @@ const { authUser } = require("../middlwares/auth");
 const router = express.Router();
 router.post("authUser", authUser);
 router.post("/generate2faSecret", generate2faSecret);
+router.post("/login", login);
+router.post("/findUser", findUser);
 router.post("/verifyOtp", verifyOtp);
 router.post("/loginStep2", loginStep2);
 router.post("/register", register);
-router.post("/activate", authUser, activateAccount);
-router.post("/login", login);
-router.post("/sendVerification", authUser, sendVerification);
-router.post("/findUser", findUser);
 router.post("/sendResetPasswordCode", sendResetPasswordCode);
 router.post("/validateResetCode", validateResetCode);
 router.post("/changePassword", changePassword);
+
+router.post("/activate", authUser, activateAccount);
+router.post("/sendVerification", authUser, sendVerification);
 router.get("/getProfile/:username", authUser, getProfile);
 router.put("/updateProfilePicture", authUser, updateProfilePicture);
 router.put("/updateCover", authUser, updateCover);
