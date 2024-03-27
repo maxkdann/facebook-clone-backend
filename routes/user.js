@@ -33,7 +33,7 @@ const {
 const { authUser } = require("../middlwares/auth");
 
 const router = express.Router();
-
+router.post("authUser", authUser);
 router.post("/generate2faSecret", generate2faSecret);
 router.post("/verifyOtp", verifyOtp);
 router.post("/loginStep2", loginStep2);

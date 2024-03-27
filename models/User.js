@@ -31,6 +31,10 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    loginStep2VerificationToken: {
+      type: String,
+      default: "",
+    },
 
     email: {
       type: String,

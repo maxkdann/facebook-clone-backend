@@ -73,12 +73,12 @@ exports.register = async (req, res) => {
       bDay,
       gender,
     }).save();
-    const emailVerificationToken = generateToken(
-      { id: user._id.toString() },
-      "30m"
-    );
-    const url = `${process.env.BASE_URL}/activate/${emailVerificationToken}`;
-    sendVerificationEmail(user.email, user.first_name, url);
+    // const emailVerificationToken = generateToken(
+    //   { id: user._id.toString() },
+    //   "30m"
+    // );
+    // const url = `${process.env.BASE_URL}/activate/${emailVerificationToken}`;
+    // sendVerificationEmail(user.email, user.first_name, url);
     const token = generateToken({ id: user._id.toString() }, "7d");
     res.send({
       id: user._id,
@@ -87,7 +87,7 @@ exports.register = async (req, res) => {
       first_name: user.first_name,
       last_name: user.last_name,
       token: token,
-      verified: user.verified,
+      verified: true,
       message: "Register Success ! please activate your email to start",
     });
   } catch (error) {
@@ -120,57 +120,6 @@ exports.activateAccount = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-// exports.login = async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-//     const user = await User.findOne({ email });
-//     if (!user) {
-//       return res.status(400).json({
-//         message:
-//           "the email address you entered is not connected to an account.",
-//       });
-//     }
-//     const check = await bcrypt.compare(password, user.password);
-//     if (!check) {
-//       return res.status(400).json({
-//         message: "Invalid credentials. Please try again.",
-//       });
-//     }
-//     const token = generateToken({ id: user._id.toString() }, "7d");
-//     if (!user.twofaEnabled) {
-//       res.send({
-//         id: user._id,
-//         username: user.username,
-//         picture: user.picture,
-//         first_name: user.first_name,
-//         last_name: user.last_name,
-//         token: token,
-//         verified: user.verified,
-//         twofaEnabled: false,
-//         twofa_token: jwt.sign(
-//           {
-//             user: { email: user.email },
-//           },
-//           process.env.JWT_SECRET
-//         ),
-//       });
-//     } else {
-//       res.send({
-//         message: "Please complete 2-factor authentication",
-//         twofaEnabled: true,
-//         loginStep2VerificationToken: jwt.sign(
-//           {
-//             loginStep2VerificationToken: { email: user.email },
-//           },
-//           process.env.JWT_SECRET,
-//           { expiresIn: "1m" }
-//         ),
-//       });
-//     }
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
 
 exports.login = async (req, res) => {
   try {
@@ -189,15 +138,34 @@ exports.login = async (req, res) => {
       });
     }
     const token = generateToken({ id: user._id.toString() }, "7d");
-    res.send({
-      id: user._id,
-      username: user.username,
-      picture: user.picture,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      token: token,
-      verified: user.verified,
-    });
+    if (!user.twofaEnabled) {
+      //log in normally
+      res.send({
+        id: user._id,
+        username: user.username,
+        picture: user.picture,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        token: token,
+        verified: user.verified,
+        twofaEnabled: false,
+      });
+    } else {
+      //user must complete 2fa before logging in
+
+      return res.json({
+        message: "Please complete 2-factor authentication",
+        twofaEnabled: true,
+        token: token,
+        loginStep2VerificationToken: jwt.sign(
+          {
+            loginStep2VerificationToken: { email: user.email },
+          },
+          process.env.TOKEN_SECRET,
+          { expiresIn: "5m" }
+        ),
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -207,9 +175,10 @@ exports.generate2faSecret = async (req, res) => {
   const { username } = req.body;
   const user = await User.findOne({ username });
   if (user.twofaEnabled) {
-    return res.status(400).json({
+    return res.json({
       message: "2FA already verified and enabled",
       twofaEnabled: user.twofaEnabled,
+      success: false,
     });
   }
 
@@ -230,7 +199,6 @@ exports.generate2faSecret = async (req, res) => {
 };
 
 exports.verifyOtp = async (req, res) => {
-  console.log(req);
   const { username, token } = req.body;
   const user = await User.findOne({ username });
   if (user.twofaEnabled) {
@@ -241,7 +209,7 @@ exports.verifyOtp = async (req, res) => {
   }
 
   if (!authenticator.check(token, user.twofaSecret)) {
-    return res.status(400).json({
+    return res.json({
       message: "OTP verification failed: Invalid token",
       twofaEnabled: user.twofaEnabled,
     });
@@ -261,7 +229,7 @@ exports.loginStep2 = async (req, res) => {
   try {
     loginStep2VerificationToken = jwt.verify(
       req.body.loginStep2VerificationToken,
-      process.env.JWT_SECRET
+      process.env.TOKEN_SECRET
     );
   } catch (err) {
     return res.status(401).json({
@@ -269,23 +237,26 @@ exports.loginStep2 = async (req, res) => {
     });
   }
 
-  const token = req.body.twofaToken.replaceAll(" ", "");
+  const twofaToken = req.body.twofaToken.replaceAll(" ", "");
+  const token = req.body.token;
   const user = await User.findOne({
     email: loginStep2VerificationToken.loginStep2VerificationToken.email,
   });
-  if (!authenticator.check(token, user.twofaSecret)) {
+  if (!authenticator.check(twofaToken, user.twofaSecret)) {
     return res.status(400).json({
       message: "OTP verification failed: Invalid token",
     });
   } else {
-    return res.json({
-      message: "OTP verification successful",
-      token: jwt.sign(
-        {
-          user: { email: user.email },
-        },
-        process.env.JWT_SECRET
-      ),
+    res.send({
+      success: true,
+      id: user._id,
+      username: user.username,
+      picture: user.picture,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      token: token,
+      verified: user.verified,
+      twofaEnabled: true,
     });
   }
 };
